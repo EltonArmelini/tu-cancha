@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  database:
+    container_name: 'database'
+    image: 'mysql:8.0'
+    environment:
+      - 'MYSQL_DATABASE=rtc-bd'
+      - 'MYSQL_PASSWORD=secret'
+      - 'MYSQL_ROOT_PASSWORD=root'
+      - 'MYSQL_USER=appdb'
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - mynetwork
+  backend:
+    container_name: 'backend'
+    image: 'backend:1.0'
+    build:
+      context: ./rtc-backend
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./logs:/logs
+    networks:
+      - mynetwork
+    depends_on:
+      - database
+    restart: always
+  frontend:
+    container_name: 'frontend'
+    image: 'frontend:1.0'
+    build:
+      context: ./rtc-frontend
+    ports:
+      - '80:80'
+    volumes:
+      - ./logs:/logs
+    networks:
+      - mynetwork
+    depends_on:
+      - database
+    restart: always
+volumes:
+  mysql-data:
+networks:
+  mynetwork:
+    driver: bridge
