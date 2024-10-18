@@ -1,0 +1,86 @@
+stages:
+  - build
+  - test
+  - create_image
+  - deploy
+  - notification
+
+variables:
+  MVN_IMAGE: maven:3.6.3-openjdk-17
+  SECURE_FILES_DOWNLOAD_PATH: "./"
+#########################
+### CI STAGES ###########
+build:
+  stage: build
+  image: $MVN_IMAGE
+  script:
+    - echo only on tags
+    - env
+    - echo $CI_COMMIT_TAG
+    - echo $CI_COMMIT_BRANCH
+    - echo "Maven compile started"
+    - mvn compile
+#########################
+
+#########################
+### CD STAGES ###########
+create_image:
+  stage: create_image
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  image: docker:stable
+  services:
+    - docker:dind
+    - name: docker:dind
+      alias: thedockerhost
+  variables:
+    DOCKER_HOST: tcp://thedockerhost:2375/
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - echo $CI_COMMIT_TAG
+    - echo $CI_REGISTRY_USER
+    - echo $CI_REGISTRY_USER/backend:$VERSION_IMAGE
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
+    - docker build -t $CI_REGISTRY_USER/backend:$CI_COMMIT_TAG -t $CI_REGISTRY_USER/backend:latest .
+    - docker push $CI_REGISTRY_USER/backend:latest
+    - docker push $CI_REGISTRY_USER/backend:$CI_COMMIT_TAG
+deploy:
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  image: python:3.9
+  before_script:
+    - cd ./deploy
+    - pip install ansible
+    - mkdir ~/.ssh
+    - touch ~/.ssh/config
+    - curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | sh
+    - chmod 600 access_key.pem
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+  script:
+    - echo pwd
+    - ansible-playbook -i hosts.ini playbook.yml --key-file "access_key.pem"
+#########################
+
+#########################
+### NOTIFICATION ########
+success_notification:
+  image: alpine:latest
+  stage: notification
+  script:
+    - apk add --update git curl
+    - wget https://raw.githubusercontent.com/DiscordHooks/gitlab-ci-discord-webhook/master/send.sh
+    - chmod +x send.sh
+    - /bin/ash ./send.sh success $WEBHOOK_URL
+  when: on_success
+failure_notification:
+  image: alpine:latest
+  stage: notification
+  script:
+    - apk add --update git curl
+    - wget https://raw.githubusercontent.com/DiscordHooks/gitlab-ci-discord-webhook/master/send.sh
+    - chmod +x send.sh
+    - /bin/ash ./send.sh failure $WEBHOOK_URL
+  when: on_failure
+#########################

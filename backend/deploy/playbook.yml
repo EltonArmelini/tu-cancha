@@ -1,0 +1,22 @@
+---
+- name: Pull and Up docker compose
+  hosts: "server"
+  become: yes
+  tasks:
+    - name: Stop and remove containers and networks
+      command: systemctl stop api-rtc.service
+      args:
+        chdir: /home/ec2-user/app
+    - name: remove image
+      command: docker rmi rtucancha/backend:latest
+      args:
+        chdir: /home/ec2-user/app
+    - name: copy docker compose to host
+      copy:
+        src: ../docker-compose.yml
+        dest: /home/ec2-user/app
+        mode: '0644'
+    - name: up application
+      command: docker-compose up -d
+      args:
+        chdir: /home/ec2-user/app
