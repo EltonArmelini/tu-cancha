@@ -19,7 +19,7 @@ services:
     container_name: 'backend'
     image: 'backend:1.0'
     build:
-      context: ./rtc-backend
+      context: ./backend
     ports:
       - '8080:8080'
     volumes:
